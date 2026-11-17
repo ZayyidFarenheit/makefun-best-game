@@ -24,6 +24,13 @@ function bar(ctx, x, y, w, h, frac, fill, bg) {
   rr(ctx, x, y, w, h, 4); ctx.stroke();
 }
 
+function hash(n) {
+  // Deterministic pseudo-random for decor: fixed positions, never consumes
+  // the simulation's rng, so screenshots are stable frame to frame.
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function drawBackground(ctx, run) {
   // Library floor: deep indigo planks.
   ctx.fillStyle = '#1d1740';
@@ -36,15 +43,75 @@ function drawBackground(ctx, run) {
   for (let x = 0; x < VIEW_W; x += 96) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIEW_H); ctx.stroke();
   }
+  // Old ink stains on the floor: dark pools where blots died before.
+  ctx.fillStyle = 'rgba(8,2,20,0.5)';
+  for (let i = 0; i < 3; i++) {
+    const sx = 240 + hash(i * 3 + 1) * 800;
+    const sy = 260 + hash(i * 3 + 2) * 360;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 46 + hash(i) * 30, 18 + hash(i + 9) * 10, hash(i + 5) * 0.6 - 0.3, 0, Math.PI * 2); ctx.fill();
+  }
+  // Scattered books dropped in the panic: fixed spots, fixed colours.
+  const bookCols = ['#b5651d', '#7b2ff7', '#2a9d8f', '#e07a5f', '#118ab2', '#e8a33d'];
+  for (let i = 0; i < 10; i++) {
+    const bx = 260 + hash(i * 7 + 2) * 760;
+    const by = 240 + hash(i * 7 + 4) * 380;
+    if (Math.hypot(bx - TOME_X, by - TOME_Y) < 110) continue;
+    const rot = hash(i * 7 + 6) * Math.PI - Math.PI / 2;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(rot);
+    ctx.fillStyle = bookCols[i % bookCols.length];
+    ctx.fillRect(-14, -9, 28, 18);
+    ctx.fillStyle = '#f2ead8';
+    ctx.fillRect(-11, -7, 22, 14);
+    ctx.strokeStyle = '#5a4a7a';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-8, -3); ctx.lineTo(8, -3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8, 2); ctx.lineTo(8, 2); ctx.stroke();
+    ctx.restore();
+  }
+  // Drifting pages: loose leaves riding the draught, slow and pale.
+  ctx.fillStyle = 'rgba(242,234,216,0.28)';
+  for (let i = 0; i < 4; i++) {
+    const px = (hash(i * 11 + 3) * VIEW_W + run.time * (6 + i * 2)) % VIEW_W;
+    const py = 120 + hash(i * 11 + 7) * 460 + Math.sin(run.time * 0.7 + i * 2) * 14;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(Math.sin(run.time * 0.5 + i) * 0.5);
+    ctx.fillRect(-7, -10, 14, 20);
+    ctx.restore();
+  }
+  // Dust motes: gold flecks floating in the lamplight.
+  for (let i = 0; i < 24; i++) {
+    const mx = hash(i * 13 + 1) * VIEW_W + Math.sin(run.time * 0.3 + i) * 8;
+    const my = hash(i * 13 + 5) * VIEW_H + Math.cos(run.time * 0.22 + i * 1.7) * 8;
+    ctx.globalAlpha = 0.12 + 0.2 * Math.abs(Math.sin(run.time * 0.8 + i));
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.arc(mx, my, 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
   // Bookshelves along the top and bottom edges: rows of coloured spines.
   drawShelfRow(ctx, run, 0, 8);
   drawShelfRow(ctx, run, VIEW_H - 40, 8);
-  // Warm lamplight pooling around the Great Tome.
+  // Warm lamplight pooling around the Great Tome, with slow turning rays.
   const g = ctx.createRadialGradient(TOME_X, TOME_Y, 20, TOME_X, TOME_Y, 480);
-  g.addColorStop(0, 'rgba(255,196,90,0.45)');
+  g.addColorStop(0, 'rgba(255,196,90,0.6)');
   g.addColorStop(1, 'rgba(255,196,90,0)');
   ctx.fillStyle = g;
   ctx.fillRect(TOME_X - 480, TOME_Y - 480, 960, 960);
+  ctx.save();
+  ctx.translate(TOME_X, TOME_Y);
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = '#ffd166';
+  for (let i = 0; i < 12; i++) {
+    const a = run.time * 0.05 + (i / 12) * Math.PI * 2;
+    ctx.save();
+    ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(420, -14); ctx.lineTo(420, 14); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
   // Vignette.
   const v = ctx.createRadialGradient(640, 360, 260, 640, 360, 720);
   v.addColorStop(0, 'rgba(0,0,0,0)');
@@ -110,6 +177,18 @@ function drawTome(ctx, run) {
   ctx.beginPath();
   ctx.arc(TOME_X, TOME_Y, TOME_R + 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
   ctx.stroke();
+  // Orbiting letters: the Tome's words circle it, gold and restless.
+  ctx.fillStyle = 'rgba(255,209,102,0.85)';
+  ctx.font = 'bold 13px Georgia, serif';
+  ctx.textAlign = 'center';
+  const glyphs = ['a', 'e', 'i', 'o', 'u', '✦'];
+  for (let i = 0; i < 6; i++) {
+    const a = run.time * 0.4 + (i / 6) * Math.PI * 2;
+    const ox = TOME_X + Math.cos(a) * (TOME_R + 34);
+    const oy = TOME_Y + Math.sin(a) * (TOME_R + 34);
+    ctx.fillText(glyphs[i], ox, oy + 4);
+  }
+  ctx.textAlign = 'left';
 }
 
 function drawPlayer(ctx, run) {
@@ -149,46 +228,119 @@ function drawEnemy(ctx, run, e) {
   const flash = e.flash > 0;
   ctx.fillStyle = flash ? '#ffffff' : e.color;
   ctx.strokeStyle = flash ? '#ffffff' : e.color;
-  if (e.type === 'blot' || e.type === 'spill') {
-    // Wobbling ink blob with two pale eyes.
+  if (e.type === 'blot') {
+    // Wobbling ink blob: drips underneath, glossy highlight, pale watching eyes.
     const wob = Math.sin(run.time * 6 + e.wobble) * 2;
     ctx.beginPath();
     ctx.ellipse(0, 0, e.radius + wob, e.radius - wob, 0, 0, Math.PI * 2);
     ctx.fill();
+    // Drips: droplets hanging off the bottom, pulsing with the wobble.
+    ctx.fillStyle = flash ? '#ffffff' : e.color;
+    const drip = 3 + Math.sin(run.time * 6 + e.wobble) * 1.5;
+    ctx.beginPath(); ctx.arc(-e.radius * 0.4, e.radius - 2, drip, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.radius * 0.45, e.radius - 4, drip * 0.7, 0, Math.PI * 2); ctx.fill();
+    // Gloss highlight.
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath(); ctx.ellipse(-e.radius * 0.35, -e.radius * 0.45, e.radius * 0.32, e.radius * 0.2, -0.5, 0, Math.PI * 2); ctx.fill();
+    // Eyes.
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(-e.radius * 0.35, -3, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(e.radius * 0.35, -3, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-e.radius * 0.35, -3, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.radius * 0.35, -3, 3.4, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#12041f';
-    ctx.beginPath(); ctx.arc(-e.radius * 0.35, -3, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(e.radius * 0.35, -3, 1.5, 0, Math.PI * 2); ctx.fill();
-  } else if (e.type === 'worm') {
-    // Three orange segments, wiggling.
+    ctx.beginPath(); ctx.arc(-e.radius * 0.35, -3, 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.radius * 0.35, -3, 1.7, 0, Math.PI * 2); ctx.fill();
+  } else if (e.type === 'spill') {
+    // A wide pulsing puddle: slow, heavy, splitting soon. Bubbles rise in it.
+    const pulse = 1 + Math.sin(run.time * 2.5 + e.wobble) * 0.08;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, e.radius * 1.35 * pulse, e.radius * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Bubbles.
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
     for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = i === 0 ? '#f4a261' : '#e8a33d';
-      ctx.beginPath(); ctx.arc(-i * 7 + 7, Math.sin(run.time * 8 + e.wobble + i) * 2, 7 - i, 0, Math.PI * 2); ctx.fill();
+      const bx = -e.radius * 0.6 + i * e.radius * 0.55;
+      const by = -Math.abs(Math.sin(run.time * 2 + e.wobble + i * 2)) * 6;
+      ctx.beginPath(); ctx.arc(bx, by, 3.5 + i, 0, Math.PI * 2); ctx.fill();
     }
+    // Gloss.
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.ellipse(-e.radius * 0.4, -6, e.radius * 0.4, e.radius * 0.14, -0.3, 0, Math.PI * 2); ctx.fill();
+    // Two small eyes peeking above the surface.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(-7, -8, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -8, 3, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#12041f';
-    ctx.beginPath(); ctx.arc(9, -2, 1.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-7, -8, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, -8, 1.5, 0, Math.PI * 2); ctx.fill();
+  } else if (e.type === 'worm') {
+    // Four segments, wiggling; antennae and two bright eyes on the head.
+    for (let i = 3; i >= 0; i--) {
+      ctx.fillStyle = i === 0 ? '#f4a261' : (i % 2 ? '#e8a33d' : '#d18f2e');
+      ctx.beginPath(); ctx.arc(-i * 6 + 12, Math.sin(run.time * 8 + e.wobble + i) * 2, 7 - i * 0.8, 0, Math.PI * 2); ctx.fill();
+    }
+    // Antennae.
+    ctx.strokeStyle = '#f4a261';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(14, -5); ctx.lineTo(20, -11); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16, -5); ctx.lineTo(23, -8); ctx.stroke();
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.arc(20, -11, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(23, -8, 1.8, 0, Math.PI * 2); ctx.fill();
+    // Eyes.
+    ctx.fillStyle = '#12041f';
+    ctx.beginPath(); ctx.arc(14, -3, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(14, 2, 1.8, 0, Math.PI * 2); ctx.fill();
+    // Tiny legs under the middle segments.
+    ctx.strokeStyle = 'rgba(18,4,31,0.7)';
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i <= 2; i++) {
+      const lx = -i * 6 + 12;
+      ctx.beginPath(); ctx.moveTo(lx, 5); ctx.lineTo(lx - 2, 9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lx, -5); ctx.lineTo(lx - 2, -9); ctx.stroke();
+    }
   } else if (e.type === 'page') {
-    // A torn white page, tilted, with ink lines.
+    // A torn white page, tilted, with ink lines, a folded corner and a wax seal.
     ctx.rotate(Math.sin(run.time * 3 + e.wobble) * 0.35);
     ctx.fillStyle = '#f2ead8';
     ctx.fillRect(-9, -12, 18, 24);
+    // Folded corner, top right.
+    ctx.fillStyle = '#c9bfa5';
+    ctx.beginPath(); ctx.moveTo(9, -12); ctx.lineTo(2, -12); ctx.lineTo(9, -5); ctx.closePath(); ctx.fill();
+    // Torn bottom edge.
     ctx.beginPath(); ctx.moveTo(-9, 12); ctx.lineTo(-4, 8); ctx.lineTo(0, 13); ctx.lineTo(5, 8); ctx.lineTo(9, 12); ctx.closePath();
     ctx.fillStyle = '#f2ead8'; ctx.fill();
+    // Ink lines.
     ctx.strokeStyle = '#5a4a7a';
     ctx.lineWidth = 1.4;
-    for (let i = -7; i <= 7; i += 5) { ctx.beginPath(); ctx.moveTo(-6, i); ctx.lineTo(6, i); ctx.stroke(); }
+    for (let i = -7; i <= 7; i += 5) { ctx.beginPath(); ctx.moveTo(-6, i); ctx.lineTo(5, i); ctx.stroke(); }
+    // Wax seal.
+    ctx.fillStyle = '#c0392b';
+    ctx.beginPath(); ctx.arc(-4, 8, 2.6, 0, Math.PI * 2); ctx.fill();
   } else if (e.type === 'eraser') {
-    // Pink eraser block with a white band.
+    // Pink eraser block, angry: slanted brows, gritted teeth, white sleeve band.
     rr(ctx, -13, -9, 26, 18, 4); ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(-13, -2, 26, 5);
-    ctx.fillStyle = '#ff5d73';
-    ctx.font = 'bold 8px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('✕', 0, -10);
+    // Angry eyes.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(-5, -5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#12041f';
+    ctx.beginPath(); ctx.arc(-5, -5, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -5, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#12041f';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-8, -10); ctx.lineTo(-2, -8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -10); ctx.lineTo(2, -8); ctx.stroke();
+    // Gritted teeth.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-6, 4, 12, 4);
+    ctx.strokeStyle = '#12041f';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(-2, 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, 4); ctx.lineTo(2, 8); ctx.stroke();
   } else if (e.type === 'mite') {
+    // Dust mite: grey speck, six legs, and a twinkling sparkle so it reads at a glance.
     ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#9fb3c8';
     ctx.lineWidth = 1.5;
@@ -196,29 +348,64 @@ function drawEnemy(ctx, run, e) {
       const a = (i / 3) * Math.PI * 2 + run.time * 4;
       ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * 10, Math.sin(a) * 10); ctx.stroke();
     }
+    ctx.fillStyle = '#12041f';
+    ctx.beginPath(); ctx.arc(-2, -1, 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(2, -1, 1.2, 0, Math.PI * 2); ctx.fill();
+    // Sparkle: a four-point star that twinkles.
+    const tw = 0.35 + 0.65 * Math.abs(Math.sin(run.time * 6 + e.wobble));
+    ctx.globalAlpha = tw;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    const sx = 8, sy = -8;
+    ctx.beginPath(); ctx.moveTo(sx - 4, sy); ctx.lineTo(sx + 4, sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy + 4); ctx.stroke();
+    ctx.globalAlpha = 1;
   } else if (e.type === 'boss') {
     // The Unwritten: a huge dark blot ringed in violet fire, crowned with torn pages.
     const pulse = 1 + Math.sin(run.time * 3) * 0.04;
     ctx.scale(pulse, pulse);
+    // Pulsing aura: two violet rings breathing around the blot.
+    const aura = 1 + Math.sin(run.time * 3) * 0.12;
+    ctx.strokeStyle = 'rgba(199,125,255,0.55)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, (e.radius + 12) * aura, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(123,47,247,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, (e.radius + 22) * (2 - aura), 0, Math.PI * 2); ctx.stroke();
     ctx.shadowColor = '#7b2ff7';
     ctx.shadowBlur = 30;
     ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
+    // Dripping ink: droplets falling from the blot's lower edge.
+    ctx.fillStyle = flash ? '#ffffff' : '#1d0a3d';
+    for (let i = 0; i < 3; i++) {
+      const dropY = e.radius * 0.7 + ((run.time * 26 + i * 22) % 26);
+      ctx.beginPath(); ctx.arc(-26 + i * 26, dropY, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    // Crown of torn pages, each with ink lines.
     ctx.fillStyle = '#f2ead8';
     for (let i = -2; i <= 2; i++) {
       ctx.save();
       ctx.translate(i * 16, -e.radius + 6);
       ctx.rotate(i * 0.25);
       ctx.fillRect(-6, -14, 12, 16);
+      ctx.strokeStyle = '#5a4a7a';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-4, -8); ctx.lineTo(4, -8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-4, -3); ctx.lineTo(4, -3); ctx.stroke();
       ctx.restore();
     }
-    // Two burning violet eyes.
+    // Two burning violet eyes under angry brows.
     ctx.fillStyle = '#c77dff';
     ctx.beginPath(); ctx.arc(-18, -8, 8, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(18, -8, 8, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#12041f';
     ctx.beginPath(); ctx.arc(-18, -8, 3.5, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(18, -8, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c77dff';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-26, -20); ctx.lineTo(-10, -16); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(26, -20); ctx.lineTo(10, -16); ctx.stroke();
     // A mouth that eats words: a jagged dark slit.
     ctx.fillStyle = '#000000';
     ctx.beginPath();
@@ -417,7 +604,10 @@ function drawWorld(ctx, run) {
     ctx.beginPath(); ctx.arc(pk.x - 2, pk.y - 2, 2.5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
-  // Bullets: bright ink bolts.
+  // Bullets: bright ink bolts with a violet glow.
+  ctx.save();
+  ctx.shadowColor = '#c77dff';
+  ctx.shadowBlur = 8;
   for (const b of run.bullets) {
     ctx.strokeStyle = '#c77dff';
     ctx.lineWidth = 5;
@@ -425,21 +615,30 @@ function drawWorld(ctx, run) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2); ctx.fill();
   }
+  ctx.restore();
   for (const e of run.enemies) drawEnemy(ctx, run, e);
   drawPlayer(ctx, run);
-  // Particles.
+  // Particles: additive glow so hits and kills sparkle.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
   for (const pt of run.particles) {
     ctx.globalAlpha = Math.max(0, pt.life / pt.max);
     ctx.fillStyle = pt.color;
+    ctx.shadowColor = pt.color;
+    ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2); ctx.fill();
   }
+  ctx.restore();
   ctx.globalAlpha = 1;
-  // Damage numbers.
+  // Damage numbers: dark outline so they stay readable over bright ink.
   ctx.textAlign = 'center';
   for (const f of run.floaters) {
     ctx.globalAlpha = Math.max(0, f.life / f.max);
-    ctx.fillStyle = f.color;
     ctx.font = 'bold 14px system-ui, sans-serif';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(f.text, f.x, f.y);
+    ctx.fillStyle = f.color;
     ctx.fillText(f.text, f.x, f.y);
   }
   ctx.globalAlpha = 1;

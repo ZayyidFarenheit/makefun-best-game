@@ -410,6 +410,8 @@ export function update(run, input, dt, sfx) {
         e.telegraph -= dt;
         if (e.telegraph <= 0) {
           e.chargeTime = 0.5;
+          // The charge lands with a jolt: the screen shakes as the boss launches.
+          run.shake = Math.max(run.shake, 8);
           const a = Math.atan2(p.y - e.y, p.x - e.x);
           e.chargeX = Math.cos(a); e.chargeY = Math.sin(a);
           if (sfx) sfx.bossRoar();
