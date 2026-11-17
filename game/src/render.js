@@ -28,7 +28,7 @@ function drawBackground(ctx, run) {
   // Library floor: deep indigo planks.
   ctx.fillStyle = '#1d1740';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
   ctx.lineWidth = 1;
   for (let y = 60; y < VIEW_H; y += 48) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIEW_W, y); ctx.stroke();
@@ -40,15 +40,15 @@ function drawBackground(ctx, run) {
   drawShelfRow(ctx, run, 0, 8);
   drawShelfRow(ctx, run, VIEW_H - 40, 8);
   // Warm lamplight pooling around the Great Tome.
-  const g = ctx.createRadialGradient(TOME_X, TOME_Y, 20, TOME_X, TOME_Y, 400);
-  g.addColorStop(0, 'rgba(255,196,90,0.30)');
+  const g = ctx.createRadialGradient(TOME_X, TOME_Y, 20, TOME_X, TOME_Y, 480);
+  g.addColorStop(0, 'rgba(255,196,90,0.45)');
   g.addColorStop(1, 'rgba(255,196,90,0)');
   ctx.fillStyle = g;
-  ctx.fillRect(TOME_X - 400, TOME_Y - 400, 800, 800);
+  ctx.fillRect(TOME_X - 480, TOME_Y - 480, 960, 960);
   // Vignette.
   const v = ctx.createRadialGradient(640, 360, 260, 640, 360, 720);
   v.addColorStop(0, 'rgba(0,0,0,0)');
-  v.addColorStop(1, 'rgba(0,0,0,0.42)');
+  v.addColorStop(1, 'rgba(0,0,0,0.32)');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }

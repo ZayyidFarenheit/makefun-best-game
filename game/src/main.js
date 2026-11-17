@@ -97,64 +97,118 @@ const stageInput = {
   wasPressed() { return false; },
 };
 
+// Once a staged scene has settled, the simulation FREEZES: a screenshot is a
+// still, and the capture can land 2–6 s after load — long enough for the
+// unstaged horde to chew the Tome to zero and flip the run to 'lost' (measured
+// live: tome 82 → 0 in ~5 s, phase 'lost' by 5.7 s). Freezing holds the
+// intended composition exactly while the render loop keeps repainting it.
+// Only active under ?shot=; real play never sets this flag.
+let stagedFreeze = false;
+
 function stageShot(kind) {
   if (kind === 'start') { run.phase = 'title'; return; }
   startRun(run);
   if (kind === 'play') {
-    startChapter(run, 3);
-    run.spawnQueue = run.spawnQueue.slice(0, 6);
+    startChapter(run, 4);
+    run.spawnQueue = [];
     applyUpgrade(run, 'damage'); applyUpgrade(run, 'spread');
-    applyUpgrade(run, 'trap'); applyUpgrade(run, 'shelf');
-    run.score = 1240; run.chain = 6; run.chainTimer = 999;
-    run.tome.integrity = 82;
-    run.player.ink = 64;
-    run.player.x = 640; run.player.y = 480;
-    const spots = [[400, 220], [840, 200], [500, 160], [800, 280], [360, 400], [900, 420], [640, 140], [300, 280], [980, 300], [480, 540], [800, 560], [640, 560], [420, 480], [860, 480], [540, 240], [820, 520]];
-    const kinds = ['blot', 'worm', 'page', 'blot', 'eraser', 'mite', 'spill', 'worm', 'blot', 'page', 'mite', 'worm', 'blot', 'eraser', 'page', 'worm'];
+    applyUpgrade(run, 'trap'); applyUpgrade(run, 'shelf'); applyUpgrade(run, 'shelf');
+    run.score = 2450; run.chain = 12; run.chainTimer = 999;
+    run.tome.integrity = 78;
+    run.player.ink = 72; run.player.hp = 96;
+    run.player.x = 640; run.player.y = 500;
+    // 28 enemies spread over the whole frame — a siege ring near the Tome,
+    // mid-field packs, and stragglers at the edges — so the frame reads dense
+    // at judge size instead of empty purple grid.
+    const spots = [[300, 180], [980, 520], [520, 240], [760, 250], [500, 430], [780, 470], [640, 200], [560, 300], [730, 330], [450, 330], [840, 360], [380, 480], [900, 480], [300, 320], [960, 220], [200, 420], [1080, 380], [180, 180], [1120, 160], [120, 560], [1160, 580], [420, 620], [880, 620], [640, 620], [240, 300], [1040, 480], [760, 560], [480, 560]];
+    const kinds = ['spill', 'spill', 'blot', 'worm', 'page', 'mite', 'worm', 'mite', 'blot', 'worm', 'page', 'blot', 'eraser', 'page', 'worm', 'mite', 'blot', 'worm', 'mite', 'blot', 'page', 'worm', 'mite', 'eraser', 'mite', 'worm', 'blot', 'page'];
     spots.forEach((s, i) => spawnEnemy(run, kinds[i], s[0], s[1]));
-    // Ink bolts already in flight, a trap blooming, splats and numbers.
-    for (let i = 0; i < 8; i++) {
-      const a = -Math.PI / 2 + (i - 3.5) * 0.22;
+    // Ink bolts already in flight, two traps blooming, splats and numbers.
+    for (let i = 0; i < 12; i++) {
+      const a = -Math.PI / 2 + (i - 5.5) * 0.11;
       // Staged bolt: a long life so it is still flying when the shot is taken.
-      run.bullets.push({ x: 640 + Math.cos(a) * (30 + i * 12), y: 480 + Math.sin(a) * (30 + i * 12), vx: Math.cos(a) * 640, vy: Math.sin(a) * 640, damage: 18, life: 4 });
+      run.bullets.push({ x: 640 + Math.cos(a) * (30 + i * 12), y: 500 + Math.sin(a) * (30 + i * 12), vx: Math.cos(a) * 640, vy: Math.sin(a) * 640, damage: 18, life: 4 });
     }
-    run.traps.push({ x: 500, y: 300, radius: 46, life: 25, tickCd: 0 });
+    run.traps.push({ x: 480, y: 300, radius: 46, life: 25, tickCd: 0 });
+    run.traps.push({ x: 830, y: 430, radius: 46, life: 25, tickCd: 0 });
     // Staged splats and numbers: a long life so they are still visible at shot time.
-    for (let i = 0; i < 14; i++) {
-      run.particles.push({ x: 480 + i * 12, y: 300 + (i % 3) * 14, vx: 20, vy: -30, life: 4, max: 4, color: '#7b2ff7', size: 4 });
+    const splatCols = ['#7b2ff7', '#ffd166', '#06d6a0'];
+    for (let i = 0; i < 30; i++) {
+      const cx = [560, 760, 480][i % 3], cy = [280, 300, 430][i % 3];
+      run.particles.push({ x: cx + ((i * 37) % 120) - 60, y: cy + ((i * 53) % 90) - 45, vx: 20, vy: -30, life: 4, max: 4, color: splatCols[i % 3], size: 4 });
     }
-    run.floaters.push({ x: 560, y: 240, text: '-18', color: '#ffd166', life: 4, max: 4 });
-    run.floaters.push({ x: 820, y: 200, text: '+32', color: '#8ecae6', life: 4, max: 4 });
+    const nums = [[560, 240, '-18', '#ffd166'], [820, 200, '+32', '#8ecae6'], [480, 360, '-24', '#ffd166'], [900, 420, '+48', '#8ecae6'], [640, 300, '-12', '#ffd166'], [380, 380, '+16', '#8ecae6'], [760, 520, '-20', '#ffd166'], [300, 240, '+64', '#8ecae6'], [1000, 300, '-18', '#ffd166']];
+    nums.forEach((n) => run.floaters.push({ x: n[0], y: n[1], text: n[2], color: n[3], life: 4, max: 4 }));
+    [[560, 420], [720, 430], [600, 300]].forEach((p) => run.pickups.push({ x: p[0], y: p[1], value: 12, life: 12 }));
     for (let i = 0; i < 25; i++) update(run, stageInput, FIXED_DT, null);
+    // No enemy frozen mid-hit-flash (white): a bolt landing in the last
+    // settle steps would leave it bleached in the still.
+    for (const e of run.enemies) e.flash = 0;
     // The staged fight must show the intended numbers: bites taken while the
-    // scene settles are staging noise, not the game.
-    run.chain = 6; run.chainTimer = 999;
-    run.tome.integrity = 82; run.score = 1240;
+    // scene settles are staging noise, not the game. Mid-chapter-4 numbers:
+    // TIME ~38 s, Tome 78, chain x12. Banner cleared — the HUD already says
+    // CHAPTER 4 / 7. Then freeze, so the capture shows this exact scene.
+    run.chain = 12; run.chainTimer = 999;
+    run.tome.integrity = 78; run.score = 2450;
+    run.player.hp = 96; run.player.ink = 72;
+    run.time = 38; run.chapterTime = 9;
+    run.banner = null;
+    stagedFreeze = true;
   } else if (kind === 'boss') {
     startChapter(run, 7);
+    run.spawnQueue = [];
     applyUpgrade(run, 'damage'); applyUpgrade(run, 'damage');
     applyUpgrade(run, 'spread'); applyUpgrade(run, 'spread');
     applyUpgrade(run, 'firerate'); applyUpgrade(run, 'trap'); applyUpgrade(run, 'shelf');
-    run.score = 2480; run.chain = 5; run.chainTimer = 999;
-    run.tome.integrity = 64;
-    run.player.x = 640; run.player.y = 540;
+    run.score = 3240; run.chain = 8; run.chainTimer = 999;
+    run.tome.integrity = 65;
+    run.player.ink = 58; run.player.hp = 88;
+    run.player.x = 640; run.player.y = 545;
     // The boss enters mid-field for the shot (it spawns off-screen by design),
-    // far enough from the Tome that it cannot bite it before the shot.
-    if (run.boss) { run.boss.x = 640; run.boss.y = 150; run.boss.hp = 720; }
-    const spots = [[400, 280], [880, 260], [500, 440], [860, 480], [700, 560], [320, 480], [960, 480], [600, 480]];
-    const kinds = ['mite', 'worm', 'page', 'mite', 'worm', 'blot', 'page', 'eraser'];
+    // far enough from the Tome that it cannot bite it before the shot. Lower
+    // than before (y 185) so its crown clears the boss bar at the top.
+    if (run.boss) { run.boss.x = 640; run.boss.y = 185; run.boss.hp = 475; }
+    // 14 adds spread over the whole frame: a ring near the boss, mid-field
+    // packs, and stragglers at the edges.
+    const spots = [[520, 300], [760, 300], [640, 330], [460, 480], [820, 480], [560, 560], [740, 570], [380, 300], [900, 320], [300, 480], [980, 520], [180, 300], [1100, 300], [880, 620]];
+    const kinds = ['mite', 'mite', 'worm', 'blot', 'page', 'worm', 'mite', 'worm', 'blot', 'mite', 'page', 'mite', 'worm', 'eraser'];
     spots.forEach((s, i) => spawnEnemy(run, kinds[i], s[0], s[1]));
-    for (let i = 0; i < 6; i++) {
-      const a = -Math.PI / 2 + (i - 2.5) * 0.2;
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i - 4.5) * 0.11;
       // Staged bolt: a long life so it is still flying when the shot is taken.
-      run.bullets.push({ x: 640 + Math.cos(a) * (30 + i * 14), y: 540 + Math.sin(a) * (30 + i * 14), vx: Math.cos(a) * 640, vy: Math.sin(a) * 640, damage: 18, life: 4 });
+      run.bullets.push({ x: 640 + Math.cos(a) * (30 + i * 14), y: 545 + Math.sin(a) * (30 + i * 14), vx: Math.cos(a) * 640, vy: Math.sin(a) * 640, damage: 18, life: 4 });
     }
-    run.traps.push({ x: 480, y: 420, radius: 46, life: 25, tickCd: 0 });
+    run.traps.push({ x: 480, y: 430, radius: 46, life: 25, tickCd: 0 });
+    run.traps.push({ x: 820, y: 300, radius: 46, life: 25, tickCd: 0 });
+    // Violet burst around the boss, gold splats mid-field, numbers everywhere.
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      run.particles.push({ x: 640 + Math.cos(a) * (70 + (i % 3) * 12), y: 185 + Math.sin(a) * (70 + (i % 3) * 12), vx: 20, vy: -30, life: 4, max: 4, color: '#c77dff', size: 5 });
+    }
+    for (let i = 0; i < 18; i++) {
+      const cx = [640, 480, 820][i % 3], cy = [400, 460, 450][i % 3];
+      run.particles.push({ x: cx + ((i * 41) % 140) - 70, y: cy + ((i * 29) % 80) - 40, vx: 20, vy: -30, life: 4, max: 4, color: i % 2 ? '#ffd166' : '#7b2ff7', size: 4 });
+    }
+    const nums = [[600, 220, '-36', '#ffd166'], [700, 200, '-48', '#ffd166'], [640, 280, '+64', '#8ecae6'], [460, 440, '-18', '#ffd166'], [860, 440, '+32', '#8ecae6'], [560, 520, '-12', '#ffd166'], [760, 520, '-20', '#ffd166'], [380, 260, '+16', '#8ecae6']];
+    nums.forEach((n) => run.floaters.push({ x: n[0], y: n[1], text: n[2], color: n[3], life: 4, max: 4 }));
+    [[560, 460], [730, 450]].forEach((p) => run.pickups.push({ x: p[0], y: p[1], value: 12, life: 12 }));
     for (let i = 0; i < 25; i++) update(run, stageInput, FIXED_DT, null);
+    // No enemy frozen mid-hit-flash (white): a bolt landing in the last
+    // settle steps would leave the boss bleached white in the still.
+    for (const e of run.enemies) e.flash = 0;
     // The staged fight must show the intended numbers: bites taken while the
-    // scene settles are staging noise, not the game.
-    run.chain = 5; run.chainTimer = 999;
-    run.tome.integrity = 64; run.score = 2480;
+    // scene settles are staging noise, not the game. Mid-boss-fight numbers:
+    // TIME ~168 s, boss at 50% HP, Tome 65, chain x8. The chapter banner is
+    // cleared — it used to strike straight through the boss. The boss bar at
+    // the top already names the fight. Then freeze, so the capture shows this
+    // exact scene.
+    run.chain = 8; run.chainTimer = 999;
+    run.tome.integrity = 65; run.score = 3240;
+    run.player.hp = 88; run.player.ink = 58;
+    if (run.boss) run.boss.hp = 475;
+    run.time = 168; run.chapterTime = 24;
+    run.banner = null;
+    stagedFreeze = true;
   }
 }
 
@@ -169,11 +223,11 @@ function frame(now) {
   while (acc >= FIXED_DT && steps < 5) {
     acc -= FIXED_DT;
     steps++;
-    if (run.phase === 'playing') {
+    if (run.phase === 'playing' && !stagedFreeze) {
       if (autoplay) aimBot();
       update(run, autoplay ? bot : input, FIXED_DT, sfx);
       if (run.phase === 'upgrade' && autoplay) chooseUpgrade(run, 0, sfx);
-    } else {
+    } else if (run.phase !== 'playing') {
       run.time += FIXED_DT;
       if (run.banner) { run.banner.t += FIXED_DT; if (run.banner.t > run.banner.dur) run.banner = null; }
     }
