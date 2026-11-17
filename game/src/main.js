@@ -168,10 +168,10 @@ function stageShot(kind) {
     // far enough from the Tome that it cannot bite it before the shot. Lower
     // than before (y 185) so its crown clears the boss bar at the top.
     if (run.boss) { run.boss.x = 640; run.boss.y = 185; run.boss.hp = 475; }
-    // 14 adds spread over the whole frame: a ring near the boss, mid-field
+    // 18 adds spread over the whole frame: a ring near the boss, mid-field
     // packs, and stragglers at the edges.
-    const spots = [[520, 300], [760, 300], [640, 330], [460, 480], [820, 480], [560, 560], [740, 570], [380, 300], [900, 320], [300, 480], [980, 520], [180, 300], [1100, 300], [880, 620]];
-    const kinds = ['mite', 'mite', 'worm', 'blot', 'page', 'worm', 'mite', 'worm', 'blot', 'mite', 'page', 'mite', 'worm', 'eraser'];
+    const spots = [[520, 300], [760, 300], [640, 330], [460, 480], [820, 480], [560, 560], [740, 570], [380, 300], [900, 320], [300, 480], [980, 520], [180, 300], [1100, 300], [880, 620], [420, 620], [880, 200], [240, 380], [1040, 380]];
+    const kinds = ['mite', 'mite', 'worm', 'blot', 'page', 'worm', 'mite', 'worm', 'blot', 'mite', 'page', 'mite', 'worm', 'eraser', 'mite', 'worm', 'blot', 'page'];
     spots.forEach((s, i) => spawnEnemy(run, kinds[i], s[0], s[1]));
     for (let i = 0; i < 10; i++) {
       const a = -Math.PI / 2 + (i - 4.5) * 0.11;
@@ -209,6 +209,54 @@ function stageShot(kind) {
     run.time = 168; run.chapterTime = 24;
     run.banner = null;
     stagedFreeze = true;
+  } else if (kind === 'win') {
+    // The win screen: "THE LIBRARY ENDURES" over a living arena. The boss
+    // is already undone (removed, with a burst where it fell); the remaining
+    // horde, splats and drifting pages show through the green veil behind
+    // the end text. Only used for the victory screenshot.
+    startRun(run);
+    startChapter(run, 7);
+    run.spawnQueue = [];
+    applyUpgrade(run, 'damage'); applyUpgrade(run, 'damage');
+    applyUpgrade(run, 'spread'); applyUpgrade(run, 'spread');
+    applyUpgrade(run, 'firerate'); applyUpgrade(run, 'trap'); applyUpgrade(run, 'shelf');
+    run.score = 34545; run.chain = 12; run.chainTimer = 999;
+    run.tome.integrity = 78;
+    run.player.ink = 100; run.player.hp = 76;
+    run.player.x = 640; run.player.y = 500;
+    if (run.boss) { run.boss.x = 640; run.boss.y = 185; run.boss.hp = 1; }
+    const spots = [[520, 300], [760, 300], [460, 480], [820, 480], [380, 300], [900, 320], [300, 480], [980, 520], [560, 560], [740, 570]];
+    const kinds = ['mite', 'worm', 'blot', 'page', 'worm', 'mite', 'page', 'worm', 'blot', 'eraser'];
+    spots.forEach((s, i) => spawnEnemy(run, kinds[i], s[0], s[1]));
+    for (let i = 0; i < 12; i++) {
+      const a = -Math.PI / 2 + (i - 5.5) * 0.11;
+      run.bullets.push({ x: 640 + Math.cos(a) * (30 + i * 12), y: 500 + Math.sin(a) * (30 + i * 12), vx: Math.cos(a) * 640, vy: Math.sin(a) * 640, damage: 18, life: 4 });
+    }
+    run.traps.push({ x: 480, y: 300, radius: 46, life: 25, tickCd: 0 });
+    run.traps.push({ x: 830, y: 430, radius: 46, life: 25, tickCd: 0 });
+    for (let i = 0; i < 30; i++) {
+      const cx = [560, 760, 480][i % 3], cy = [280, 300, 430][i % 3];
+      run.particles.push({ x: cx + ((i * 37) % 120) - 60, y: cy + ((i * 53) % 90) - 45, vx: 20, vy: -30, life: 4, max: 4, color: ['#7b2ff7', '#ffd166', '#06d6a0'][i % 3], size: 4 });
+    }
+    const nums = [[560, 240, '-18', '#ffd166'], [820, 200, '+32', '#8ecae6'], [480, 360, '-24', '#ffd166'], [900, 420, '+48', '#8ecae6'], [640, 300, '-12', '#ffd166'], [380, 380, '+16', '#8ecae6']];
+    nums.forEach((n) => run.floaters.push({ x: n[0], y: n[1], text: n[2], color: n[3], life: 4, max: 4 }));
+    for (let i = 0; i < 25; i++) update(run, stageInput, FIXED_DT, null);
+    for (const e of run.enemies) e.flash = 0;
+    // Undo the boss where it stood: a violet-gold burst marks the kill, then
+    // it is gone, exactly as a real win leaves the arena.
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2;
+      run.particles.push({ x: 640 + Math.cos(a) * (20 + (i % 4) * 18), y: 185 + Math.sin(a) * (20 + (i % 4) * 18), vx: 20, vy: -30, life: 4, max: 4, color: i % 2 ? '#c77dff' : '#ffd166', size: 5 });
+    }
+    run.enemies = run.enemies.filter((e) => e.type !== 'boss');
+    run.boss = null; run.bossDefeated = true;
+    run.chain = 12; run.chainTimer = 999;
+    run.tome.integrity = 78; run.score = 34545; run.kills = 326;
+    run.player.hp = 76; run.player.ink = 100;
+    run.time = 118; run.chapterTime = 24;
+    run.banner = null;
+    run.winStats = { score: 34545, kills: 326, chapter: 7, time: 118 };
+    run.phase = 'won';
   }
 }
 
